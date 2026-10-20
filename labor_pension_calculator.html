@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>勞退自提試算計算機</title>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#e4e7ec;--accent:#2563eb;--good:#087443}
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif;background:var(--bg);color:var(--text)}
+.wrap{max-width:1050px;margin:40px auto;padding:0 18px}.hero{margin-bottom:22px}.hero h1{font-size:32px;margin:0 0 8px}.hero p{color:var(--muted);margin:0}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 4px 18px #1018280a}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:7px}input{width:100%;padding:12px;border:1px solid #d0d5dd;border-radius:10px;font-size:16px}
+.actions{margin:16px 0 22px}button{border:0;background:var(--accent);color:#fff;border-radius:10px;padding:12px 20px;font-size:16px;font-weight:700;cursor:pointer}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}.big{font-size:25px;font-weight:800;margin-top:4px}.green{color:var(--good)}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:12px 10px;border-bottom:1px solid var(--line);text-align:right}th:first-child,td:first-child{text-align:left}th{color:#475467;background:#f9fafb}
+.best{background:#ecfdf3}.tag{display:inline-block;padding:3px 8px;border-radius:99px;background:#dcfae6;color:#067647;font-size:12px;font-weight:700}
+.note{font-size:13px;color:var(--muted);line-height:1.65;margin-top:16px}
+@media(max-width:760px){.grid,.summary{grid-template-columns:1fr}.hero h1{font-size:26px}.tablewrap{overflow:auto}table{min-width:800px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+ <div class="hero"><h1>勞退自提試算計算機</h1><p>輸入月薪、年終月數與其他獎金，比較 0%～6% 自提後的所得稅與現金流。</p></div>
+ <div class="card">
+  <div class="grid">
+   <div><label>每月固定薪資（元）</label><input id="salary" type="number" value="80000" min="0"></div>
+   <div><label>年終約幾個月</label><input id="months" type="number" value="2" min="0" step=".1"></div>
+   <div><label>其他年度獎金（元）</label><input id="bonus" type="number" value="0" min="0"></div>
+  </div>
+  <div class="actions"><button onclick="calc()">開始試算</button></div>
+  <div class="summary">
+   <div><label>預估全年薪資收入</label><div class="big" id="annual">—</div></div>
+   <div><label>0% 自提預估所得稅</label><div class="big" id="baseTax">—</div></div>
+   <div><label>6% 自提預估省稅</label><div class="big green" id="saving">—</div></div>
+  </div>
+  <div class="tablewrap"><table>
+   <thead><tr><th>自提比例</th><th>年自提</th><th>平均每月自提</th><th>課稅所得淨額</th><th>預估所得稅</th><th>一年省稅</th><th>自提實際現金成本*</th></tr></thead>
+   <tbody id="rows"></tbody>
+  </table></div>
+  <div class="note">
+   *「實際現金成本」＝年自提－因自提而減少的所得稅。<br>
+   本頁預設單身、無扶養、採標準扣除額，使用 2026 年（民國 115 年）免稅額 101,000 元、標準扣除額 136,000 元、薪資所得特別扣除額最高 227,000 元與 5%／12%／20%／30%／40% 級距。<br>
+   勞退實際自提是依「月提繳工資」級距而非單純月薪百分比。本工具為快速規劃用，因此先以固定月薪 × 自提率 × 12 個月估算；年終與獎金計入年度薪資收入，但不計入此處的自提基數。實際報稅與勞退提繳結果仍以主管機關及雇主資料為準。
+  </div>
+ </div>
+</div>
+<script>
+const fmt=n=>new Intl.NumberFormat('zh-TW',{style:'currency',currency:'TWD',maximumFractionDigits:0}).format(Math.round(n));
+function incomeTax(net){
+ net=Math.max(0,net);
+ if(net<=610000)return net*.05;
+ if(net<=1380000)return net*.12-42700;
+ if(net<=2770000)return net*.20-153100;
+ if(net<=5190000)return net*.30-430100;
+ return net*.40-949100;
+}
+function calc(){
+ const salary=+document.getElementById('salary').value||0;
+ const months=+document.getElementById('months').value||0;
+ const bonus=+document.getElementById('bonus').value||0;
+ const annual=salary*(12+months)+bonus;
+ // 2026 assumptions: exemption + standard deduction + salary special deduction.
+ const deductions=101000+136000+Math.min(227000,annual);
+ const baseNet=Math.max(0,annual-deductions);
+ const baseTax=Math.max(0,incomeTax(baseNet));
+ let html='', tax6=baseTax;
+ for(let r=0;r<=6;r++){
+   // Simplified retirement contribution base. Actual payroll uses monthly contribution wage brackets.
+   const contribution=salary*12*r/100;
+   const net=Math.max(0,annual-contribution-deductions);
+   const tax=Math.max(0,incomeTax(net));
+   const saved=baseTax-tax;
+   if(r===6)tax6=tax;
+   html+=`<tr class="${r===6?'best':''}">
+    <td><strong>${r}%</strong> ${r===6?'<span class="tag">最高自提</span>':''}</td>
+    <td>${fmt(contribution)}</td><td>${fmt(contribution/12)}</td><td>${fmt(net)}</td>
+    <td>${fmt(tax)}</td><td class="green">${fmt(saved)}</td><td>${fmt(contribution-saved)}</td></tr>`;
+ }
+ document.getElementById('rows').innerHTML=html;
+ document.getElementById('annual').textContent=fmt(annual);
+ document.getElementById('baseTax').textContent=fmt(baseTax);
+ document.getElementById('saving').textContent=fmt(baseTax-tax6);
+}
+calc();
+</script>
+</body></html>
